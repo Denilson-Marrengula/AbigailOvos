@@ -1,0 +1,57 @@
+services:
+  db:
+    image: mysql:8.4
+    restart: unless-stopped
+    environment:
+      MYSQL_DATABASE: abigailovos_staging
+      MYSQL_USER: abigail_staging
+      MYSQL_PASSWORD: ${STAGING_DB_PASSWORD:?Configure STAGING_DB_PASSWORD}
+      MYSQL_ROOT_PASSWORD: ${STAGING_DB_ROOT_PASSWORD:?Configure STAGING_DB_ROOT_PASSWORD}
+    volumes:
+      - staging_mysql:/var/lib/mysql
+    networks:
+      - staging_private
+    healthcheck:
+      test: ["CMD-SHELL", "MYSQL_PWD=\"$$MYSQL_PASSWORD\" mysql --protocol=TCP -h 127.0.0.1 -u \"$$MYSQL_USER\" \"$$MYSQL_DATABASE\" -e 'SELECT 1' > /dev/null 2>&1"]
+      interval: 10s
+      timeout: 5s
+      retries: 18
+      start_period: 30s
+
+  api:
+    build:
+      context: ../../backend
+    restart: unless-stopped
+    depends_on:
+      db:
+        condition: service_healthy
+    environment:
+      SPRING_PROFILES_ACTIVE: production
+      SERVER_PORT: 8443
+      DB_URL: jdbc:mysql://db:3306/abigailovos_staging
+      DB_USERNAME: abigail_staging
+      DB_PASSWORD: ${STAGING_DB_PASSWORD:?Configure STAGING_DB_PASSWORD}
+      DB_MIGRATIONS_ENABLED: "false"
+      TLS_KEYSTORE_PATH: file:/run/abigail-tls/server.p12
+      TLS_KEYSTORE_PASSWORD: ${STAGING_TLS_PASSWORD:?Configure STAGING_TLS_PASSWORD}
+    ports:
+      - "127.0.0.1:18443:8443"
+    volumes:
+      - type: bind
+        source: ${STAGING_TLS_KEYSTORE:?Configure STAGING_TLS_KEYSTORE}
+        target: /run/abigail-tls/server.p12
+        read_only: true
+    read_only: true
+    tmpfs:
+      - /tmp
+    security_opt:
+      - no-new-privileges:true
+    networks:
+      - staging_private
+
+networks:
+  staging_private:
+    internal: true
+
+volumes:
+  staging_mysql:

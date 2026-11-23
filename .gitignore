@@ -1,0 +1,11 @@
+**/target/
+**/node_modules/
+**/build/
+**/.dart_tool/
+**/.flutter-plugins-dependencies
+.env
+.env.*
+!.env.example
+*.db
+*.sqlite
+*.sqlite3

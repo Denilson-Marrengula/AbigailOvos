@@ -1,0 +1,2 @@
+ALTER TABLE app_users ADD COLUMN display_name VARCHAR(150) NULL;
+ALTER TABLE app_users ADD COLUMN phone VARCHAR(40) NULL;

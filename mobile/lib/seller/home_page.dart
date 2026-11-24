@@ -1,9 +1,9 @@
 import 'package:flutter/material.dart';
 
 import '../auth/auth_service.dart';
-import '../design/app_logo.dart';
-import '../design/app_theme.dart';
+import '../design/overview_widgets.dart';
 import 'seller_controller.dart';
+import 'stock_alert.dart';
 
 class SellerHomePage extends StatelessWidget {
   const SellerHomePage({
@@ -31,7 +31,7 @@ class SellerHomePage extends StatelessWidget {
                 controller.stockError != null ||
                 controller.products == null ||
                 controller.balances.length != controller.products!.length
-            ? '—'
+            ? 'Indisponível'
             : controller.balances.values
                   .where((balance) => balance.available <= 0)
                   .length
@@ -40,6 +40,22 @@ class SellerHomePage extends StatelessWidget {
             controller.productsError != null ||
             controller.customersError != null ||
             controller.stockError != null;
+        final alerts = controller.products
+            ?.where((p) => p.active)
+            .map((p) => stockAlert(p, controller.balances[p.id]))
+            .toList();
+        final lowStock =
+            alerts == null ||
+                controller.loadingProducts ||
+                controller.loadingStock ||
+                controller.stockError != null ||
+                (controller.products?.any(
+                      (p) => p.active && !p.minimumStockSupported,
+                    ) ??
+                    false) ||
+                alerts.any((a) => a == StockAlert.unavailable)
+            ? 'Indisponível'
+            : alerts.where((a) => a == StockAlert.low).length.toString();
 
         return RefreshIndicator(
           onRefresh: controller.refreshAll,
@@ -53,77 +69,18 @@ class SellerHomePage extends StatelessWidget {
                   child: Column(
                     crossAxisAlignment: CrossAxisAlignment.stretch,
                     children: [
-                      Container(
-                        padding: const EdgeInsets.all(20),
-                        decoration: BoxDecoration(
-                          gradient: const LinearGradient(
-                            colors: [AppColors.forest, Color(0xFF24634D)],
-                            begin: Alignment.topLeft,
-                            end: Alignment.bottomRight,
+                      OverviewHeader(
+                        username: session.username,
+                        role: 'Vendedor',
+                        description:
+                            'Registe pedidos e vendas de forma simples.',
+                        action: FilledButton.icon(
+                          onPressed: onNewSale,
+                          style: FilledButton.styleFrom(
+                            minimumSize: const Size.fromHeight(48),
                           ),
-                          borderRadius: BorderRadius.circular(24),
-                        ),
-                        child: Column(
-                          crossAxisAlignment: CrossAxisAlignment.stretch,
-                          children: [
-                            Row(
-                              crossAxisAlignment: CrossAxisAlignment.start,
-                              children: [
-                                const AppLogo(size: 60),
-                                const SizedBox(width: 16),
-                                Expanded(
-                                  child: Column(
-                                    crossAxisAlignment:
-                                        CrossAxisAlignment.start,
-                                    children: [
-                                      Text(
-                                        'ABIGAILOVOS',
-                                        style: theme.textTheme.labelMedium
-                                            ?.copyWith(
-                                              color: const Color(0xFFF5DF9A),
-                                              letterSpacing: 1.2,
-                                              fontWeight: FontWeight.w700,
-                                            ),
-                                      ),
-                                      const SizedBox(height: 5),
-                                      Text(
-                                        'Olá, ${session.username}',
-                                        style: theme.textTheme.headlineSmall
-                                            ?.copyWith(
-                                              color: Colors.white,
-                                              fontWeight: FontWeight.w700,
-                                            ),
-                                      ),
-                                      const SizedBox(height: 4),
-                                      Text(
-                                        'Perfil: Vendedor',
-                                        style: theme.textTheme.bodyMedium
-                                            ?.copyWith(color: Colors.white),
-                                      ),
-                                    ],
-                                  ),
-                                ),
-                              ],
-                            ),
-                            const SizedBox(height: 18),
-                            Text(
-                              'Registe pedidos e vendas de forma simples.',
-                              style: theme.textTheme.bodyMedium?.copyWith(
-                                color: Colors.white,
-                              ),
-                            ),
-                            const SizedBox(height: 16),
-                            FilledButton.icon(
-                              onPressed: onNewSale,
-                              style: FilledButton.styleFrom(
-                                backgroundColor: AppColors.gold,
-                                foregroundColor: const Color(0xFF172A20),
-                                minimumSize: const Size.fromHeight(48),
-                              ),
-                              icon: const Icon(Icons.add_shopping_cart),
-                              label: const Text('Nova venda'),
-                            ),
-                          ],
+                          icon: const Icon(Icons.add_shopping_cart),
+                          label: const Text('Nova venda'),
                         ),
                       ),
                       const SizedBox(height: 24),
@@ -175,7 +132,15 @@ class SellerHomePage extends StatelessWidget {
                                   label: 'Itens de stock',
                                   value:
                                       controller.products?.length.toString() ??
-                                      '—',
+                                      'Indisponível',
+                                ),
+                              ),
+                              SizedBox(
+                                width: width,
+                                child: _StatCard(
+                                  icon: Icons.warning_amber_outlined,
+                                  label: 'Stock baixo',
+                                  value: lowStock,
                                 ),
                               ),
                               SizedBox(
@@ -185,7 +150,7 @@ class SellerHomePage extends StatelessWidget {
                                   label: 'Clientes',
                                   value:
                                       controller.customers?.length.toString() ??
-                                      '—',
+                                      'Indisponível',
                                 ),
                               ),
                               SizedBox(
@@ -215,22 +180,22 @@ class SellerHomePage extends StatelessWidget {
                         ),
                       ),
                       const SizedBox(height: 10),
-                      _ActionTile(
+                      OverviewActionTile(
                         icon: Icons.warehouse_outlined,
                         title: 'Stock e preços',
                         subtitle: 'Consultar e atualizar quantidades',
                         onTap: () => onOpenTab(1),
                       ),
-                      _ActionTile(
+                      OverviewActionTile(
                         icon: Icons.people_outline,
                         title: 'Clientes',
                         subtitle: 'Consultar clientes registados',
                         onTap: () => onOpenTab(2),
                       ),
-                      _ActionTile(
+                      OverviewActionTile(
                         icon: Icons.receipt_long_outlined,
                         title: 'Vendas e pedidos',
-                        subtitle: 'Acompanhar operações',
+                        subtitle: 'Entregas e pagamentos pendentes',
                         onTap: () => onOpenTab(3),
                       ),
                     ],
@@ -261,7 +226,11 @@ class _StatCard extends StatelessWidget {
     return Card(
       margin: EdgeInsets.zero,
       elevation: 0,
-      color: theme.colorScheme.surfaceContainerLow,
+      color: theme.colorScheme.surface,
+      shape: RoundedRectangleBorder(
+        borderRadius: BorderRadius.circular(10),
+        side: BorderSide(color: theme.colorScheme.outlineVariant),
+      ),
       child: Padding(
         padding: const EdgeInsets.all(14),
         child: Column(
@@ -278,39 +247,6 @@ class _StatCard extends StatelessWidget {
             Text(label, style: theme.textTheme.bodySmall),
           ],
         ),
-      ),
-    );
-  }
-}
-
-class _ActionTile extends StatelessWidget {
-  const _ActionTile({
-    required this.icon,
-    required this.title,
-    required this.subtitle,
-    required this.onTap,
-  });
-  final IconData icon;
-  final String title;
-  final String subtitle;
-  final VoidCallback onTap;
-
-  @override
-  Widget build(BuildContext context) {
-    final theme = Theme.of(context);
-    return Card(
-      elevation: 0,
-      color: theme.colorScheme.surfaceContainerLow,
-      margin: const EdgeInsets.only(bottom: 8),
-      child: ListTile(
-        onTap: onTap,
-        leading: CircleAvatar(
-          backgroundColor: theme.colorScheme.primaryContainer,
-          child: Icon(icon, color: theme.colorScheme.onPrimaryContainer),
-        ),
-        title: Text(title, style: const TextStyle(fontWeight: FontWeight.w700)),
-        subtitle: Text(subtitle),
-        trailing: const Icon(Icons.chevron_right),
       ),
     );
   }

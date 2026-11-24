@@ -4,6 +4,12 @@ plugins {
     id("dev.flutter.flutter-gradle-plugin")
 }
 
+// A release key is supplied externally. Never fall back to the debug keystore.
+val releaseStorePath = providers.environmentVariable("ABIGAIL_ANDROID_KEYSTORE_PATH").orNull
+val releaseStorePassword = providers.environmentVariable("ABIGAIL_ANDROID_KEYSTORE_PASSWORD").orNull
+val releaseKeyAlias = providers.environmentVariable("ABIGAIL_ANDROID_KEY_ALIAS").orNull
+val releaseKeyPassword = providers.environmentVariable("ABIGAIL_ANDROID_KEY_PASSWORD").orNull
+
 android {
     namespace = "com.abigailovos.abigailovos"
     compileSdk = flutter.compileSdkVersion
@@ -30,17 +36,41 @@ android {
         versionName = flutter.versionName
     }
 
+    signingConfigs {
+        create("release") {
+            if (!releaseStorePath.isNullOrBlank()) storeFile = file(releaseStorePath)
+            storePassword = releaseStorePassword
+            keyAlias = releaseKeyAlias
+            keyPassword = releaseKeyPassword
+        }
+    }
+
     buildTypes {
         debug {
             if (providers.gradleProperty("isolatedTest").orNull == "true") {
                 applicationIdSuffix = ".teste"
-                manifestPlaceholders["appLabel"] = "AbigailOvos Teste"
             }
         }
         release {
-            // TODO: Add your own signing config for the release build.
-            // Signing with the debug keys for now, so `flutter run --release` works.
-            signingConfig = signingConfigs.getByName("debug")
+            signingConfig = signingConfigs.getByName("release")
+        }
+    }
+}
+
+// Run only for release tasks, so debug/test builds do not need production keys.
+tasks.configureEach {
+    if (name == "preReleaseBuild") {
+        doFirst {
+            check(!releaseStorePath.isNullOrBlank() && !releaseStorePassword.isNullOrBlank()
+                    && !releaseKeyAlias.isNullOrBlank() && !releaseKeyPassword.isNullOrBlank()) {
+                "Release exige uma chave própria e as variáveis ABIGAIL_ANDROID_KEYSTORE_PATH, " +
+                    "ABIGAIL_ANDROID_KEYSTORE_PASSWORD, ABIGAIL_ANDROID_KEY_ALIAS e ABIGAIL_ANDROID_KEY_PASSWORD."
+            }
+            val releaseStore = file(releaseStorePath!!)
+            check(releaseStore.isFile && !releaseStore.name.equals("debug.keystore", ignoreCase = true)
+                    && !releaseKeyAlias.equals("androiddebugkey", ignoreCase = true)) {
+                "O keystore de release não existe ou corresponde à configuração de depuração."
+            }
         }
     }
 }

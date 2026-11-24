@@ -9,3 +9,9 @@
 *.db
 *.sqlite
 *.sqlite3
+# Private Android signing materials; keep recovery copies outside the repository.
+*.jks
+*.keystore
+*.p12
+*.pfx
+key.properties

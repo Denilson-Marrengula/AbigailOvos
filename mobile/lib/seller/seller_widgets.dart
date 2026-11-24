@@ -36,6 +36,34 @@ String? normalizePhone(String? raw) {
   return digits;
 }
 
+/// Must match the backend's V12 comparison policy, without inferring identity.
+String? customerPhoneKey(String? raw) {
+  if (raw == null || raw.length > 40) return null;
+  final value = raw.trim();
+  if (!RegExp(r'^\+?[0-9 ()-]+$').hasMatch(value)) return null;
+  final compact = value.replaceAll(RegExp(r'[ ()-]'), '');
+  String digits;
+  if (compact.startsWith('+')) {
+    digits = compact.substring(1);
+  } else if (compact.startsWith('00')) {
+    digits = compact.substring(2);
+  } else if (compact.startsWith('258') &&
+      (compact.length == 11 || compact.length == 12)) {
+    digits = compact;
+  } else if (compact.length == 8 || compact.length == 9) {
+    digits = '258$compact';
+  } else {
+    return null;
+  }
+  if (!RegExp(r'^[1-9][0-9]{7,14}$').hasMatch(digits) ||
+      (digits.startsWith('258') &&
+          digits.length != 11 &&
+          digits.length != 12)) {
+    return null;
+  }
+  return '+$digits';
+}
+
 class StateMessage extends StatelessWidget {
   const StateMessage({
     super.key,

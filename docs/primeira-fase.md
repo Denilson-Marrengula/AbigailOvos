@@ -4,7 +4,7 @@
 
 Preparar a base de uma única aplicação Mobile para administradores e vendedores: autenticação, permissões, produtos, clientes e stock central. A aplicação e o backend devem respeitar as permissões de cada utilizador.
 
-Uma primeira implementação online de vendas e pedidos está em desenvolvimento e ainda requer validação integrada. A sincronização offline completa, os relatórios e o dashboard ficam para fases posteriores. A base deve, no entanto, ser concebida tendo em conta a futura utilização offline e a sincronização.
+Uma primeira implementação online de vendas e pedidos está em desenvolvimento e ainda requer validação integrada. O responsável escolheu iniciar com uma primeira versão **online** e deixar a operação offline e a sincronização para uma fase posterior; estas continuam a fazer parte dos requisitos globais do projeto. O âmbito e as condições de entrada em uso estão em [primeira-versao-uso.md](primeira-versao-uso.md).
 
 ## Tecnologias e dados existentes
 
@@ -23,10 +23,11 @@ Uma primeira implementação online de vendas e pedidos está em desenvolvimento
 
 ## Utilizadores e acesso
 
-- **Administrador:** a regra pretendida é consultar relatórios e clientes ativos e gerir vendedores. A definição de cliente ativo ainda está pendente.
-- **Vendedor:** consulta stock, preços e clientes, regista movimentos de stock e cria vendas ou pedidos, podendo criar um cliente durante a operação.
-- A configuração de permissões existente ainda não implementa integralmente a divisão solicitada: o backend continua a permitir ao administrador gerir produtos; é preciso definir quem mantém esse catálogo sem interromper a operação.
+- **Administrador:** consulta clientes, stock, todas as operações e relatórios e gere vendedores; pode concluir entregas e marcar pagamentos pendentes para assistir um vendedor ausente. O vendedor original deve ser mantido e o autor da ação registado. O administrador não cria vendas nem cancela pedidos de outros vendedores; autorização para cancelamento administrativo continua por decidir. A definição de cliente ativo ainda está pendente.
+- **Vendedor:** consulta stock, preços e todos os clientes, regista movimentos de stock e cria vendas ou pedidos, podendo criar um cliente durante a operação. Consulta e altera apenas as próprias vendas e pedidos.
+- Administradores e vendedores podem criar e editar produtos e preços; apenas administradores podem alterar o estado ativo. Os movimentos manuais de stock são registados pelos vendedores.
 - Cada utilizador deve autenticar-se e ter permissões adequadas ao seu perfil. As restrições de acesso devem ser verificadas pelo sistema, não apenas escondendo opções na interface.
+- Em 15/11/2026, o responsável decidiu retirar o segundo fator em toda a aplicação; administrador e vendedor acedem com palavra-passe. A perda de proteção adicional deve ser considerada nas medidas contra roubo de credenciais e tentativas de acesso.
 - As operações relevantes devem poder ser associadas ao utilizador responsável, preparando a futura auditoria.
 
 ### Segurança de acesso
@@ -39,20 +40,19 @@ Uma primeira implementação online de vendas e pedidos está em desenvolvimento
 
 ## Produtos
 
-- O administrador pode manter o cadastro de produtos disponíveis para venda.
-- O vendedor pode consultar os produtos autorizados para a sua operação.
+- Administradores e vendedores podem criar e editar produtos e preços; a alteração do estado ativo é exclusiva do administrador.
 - O cadastro deverá permitir identificar o produto, a unidade de venda e o preço. As unidades concretas e eventuais conversões ainda precisam de confirmação.
 
 ## Clientes
 
 - Vendedores registam novos clientes durante a criação de uma venda ou pedido; administradores e vendedores podem consultá-los. O estado ativo dos clientes e as respetivas regras precisam de definição.
 - Todos os vendedores podem consultar o cadastro completo de clientes.
-- O cadastro deve identificar o cliente e permitir guardar os contactos necessários à operação. Os campos obrigatórios e as regras para detetar clientes duplicados ainda precisam de definição.
+- Nome e telefone são obrigatórios; o telefone normalizado deve ser único. A mesma pessoa com outro telefone ainda pode originar duplicado, e pessoas diferentes podem ter o mesmo nome. A regra impede partilha do número entre cadastros e requer resolução de dados antigos antes da migração. Ver [duplicados-clientes.md](duplicados-clientes.md).
 
 ## Stock central
 
 - Existe um stock central partilhado por todos os vendedores.
-- O vendedor pode registar movimentos de entrada, ajuste, perda e quebra. Cada movimento regista o tipo, produto, quantidade, motivo, data e utilizador responsável; os ajustes indicam se aumentam ou diminuem o stock. O administrador consulta o histórico.
+- O vendedor pode registar movimentos de entrada, ajuste, perda e quebra. Cada movimento regista o tipo, produto, quantidade, data e utilizador responsável; as entradas permitem observação opcional e os restantes tipos exigem motivo. Os ajustes indicam se aumentam ou diminuem o stock. O administrador consulta o histórico.
 - O saldo deve ser consistente com os movimentos registados. Correções devem ser rastreáveis, preservando o histórico em vez de apagar movimentos anteriores.
 - Ajustes, perdas e quebras não podem deixar o saldo negativo; o movimento deve ser rejeitado quando não houver stock suficiente.
 - Uma venda imediata confirmada atualiza o stock. Um pedido guardado é confirmado e reserva stock transaccionalmente; um formulário ainda não enviado não reserva. O cancelamento de pedido não pago liberta a reserva e a entrega não deve duplicar a saída física.

@@ -1,11 +1,11 @@
 {
-    "name": "abigailovos",
-    "short_name": "abigailovos",
+    "name": "AbigailOvos",
+    "short_name": "AbigailOvos",
     "start_url": ".",
     "display": "standalone",
-    "background_color": "#0175C2",
-    "theme_color": "#0175C2",
-    "description": "A new Flutter project.",
+    "background_color": "#134937",
+    "theme_color": "#134937",
+    "description": "Aplicação AbigailOvos para gestão de vendas, pedidos, clientes e stock.",
     "orientation": "portrait-primary",
     "prefer_related_applications": false,
     "icons": [

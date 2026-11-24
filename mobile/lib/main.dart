@@ -1,4 +1,7 @@
+import 'dart:async';
+
 import 'package:flutter/material.dart';
+import 'package:flutter/services.dart';
 
 import 'design/app_theme.dart';
 import 'design/info_panel.dart';
@@ -7,8 +10,37 @@ import 'auth/login_page.dart';
 
 void main() => runApp(const AbigailOvosApp());
 
-class AbigailOvosApp extends StatelessWidget {
+class AbigailOvosApp extends StatefulWidget {
   const AbigailOvosApp({super.key});
+
+  @override
+  State<AbigailOvosApp> createState() => _AbigailOvosAppState();
+}
+
+class _AbigailOvosAppState extends State<AbigailOvosApp> {
+  late final AuthService auth;
+  late final Timer splashTimer;
+  bool starting = true;
+
+  @override
+  void initState() {
+    super.initState();
+    auth = HttpAuthService(
+      const String.fromEnvironment('API_BASE_URL'),
+      developmentCertificate: const String.fromEnvironment(
+        'DEV_CERT_PEM_BASE64',
+      ),
+    );
+    splashTimer = Timer(const Duration(milliseconds: 1300), () {
+      if (mounted) setState(() => starting = false);
+    });
+  }
+
+  @override
+  void dispose() {
+    splashTimer.cancel();
+    super.dispose();
+  }
 
   @override
   Widget build(BuildContext context) {
@@ -18,52 +50,34 @@ class AbigailOvosApp extends StatelessWidget {
       theme: AppTheme.create(Brightness.light),
       darkTheme: AppTheme.create(Brightness.dark),
       themeMode: ThemeMode.system,
-      builder: (context, child) {
-        if (!const bool.fromEnvironment('ISOLATED_TEST')) {
-          return child ?? const SizedBox.shrink();
-        }
-        return Column(
-          children: [
-            Material(
-              color: Colors.amber.shade700,
-              child: SafeArea(
-                bottom: false,
-                child: SizedBox(
-                  width: double.infinity,
-                  child: Padding(
-                    padding: const EdgeInsets.symmetric(
-                      horizontal: 12,
-                      vertical: 4,
-                    ),
-                    child: Text(
-                      'AMBIENTE DE TESTE — NÃO USAR DADOS REAIS',
-                      textAlign: TextAlign.center,
-                      style: Theme.of(context).textTheme.labelSmall?.copyWith(
-                        color: Colors.black,
-                        fontWeight: FontWeight.bold,
-                      ),
-                    ),
-                  ),
-                ),
-              ),
-            ),
-            Expanded(child: child ?? const SizedBox.shrink()),
-          ],
-        );
-      },
-      home: LoginPage(
-        notice: const bool.fromEnvironment('ISOLATED_TEST')
-            ? 'Base isolada de teste: não introduza dados reais.'
-            : null,
-        auth: HttpAuthService(
-          const String.fromEnvironment('API_BASE_URL'),
-          developmentCertificate: const String.fromEnvironment(
-            'DEV_CERT_PEM_BASE64',
-          ),
-        ),
-      ),
+      home: starting ? const StartupScreen() : LoginPage(auth: auth),
     );
   }
+}
+
+class StartupScreen extends StatelessWidget {
+  const StartupScreen({super.key});
+
+  @override
+  Widget build(BuildContext context) => AnnotatedRegion<SystemUiOverlayStyle>(
+    value: const SystemUiOverlayStyle(
+      statusBarColor: AppColors.forest,
+      statusBarIconBrightness: Brightness.light,
+      systemNavigationBarColor: AppColors.forest,
+      systemNavigationBarIconBrightness: Brightness.light,
+    ),
+    child: Scaffold(
+      backgroundColor: AppColors.forest,
+      body: Center(
+        child: Image.asset(
+          'assets/splash_egg.png',
+          width: 240,
+          height: 240,
+          semanticLabel: 'AbigailOvos',
+        ),
+      ),
+    ),
+  );
 }
 
 class WelcomePage extends StatelessWidget {

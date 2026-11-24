@@ -138,6 +138,25 @@ class SellerController extends ChangeNotifier {
     }
   }
 
+  Future<void> updateCustomer(String id, String name, String? phone) async {
+    try {
+      final updated = await auth.updateCustomer(id, name, phone);
+      if (customers != null) {
+        customers = _sorted([
+          for (final customer in customers!)
+            if (customer.id == id) updated else customer,
+        ]);
+      }
+      notifyListeners();
+    } on AuthException catch (error) {
+      if (error.sessionExpired) {
+        sessionExpired = true;
+        notifyListeners();
+      }
+      rethrow;
+    }
+  }
+
   List<Customer> _sorted(List<Customer> list) {
     final copy = [...list];
     copy.sort((a, b) => a.name.toLowerCase().compareTo(b.name.toLowerCase()));

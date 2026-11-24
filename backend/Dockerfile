@@ -8,5 +8,7 @@ FROM eclipse-temurin:21-jre
 WORKDIR /app
 COPY --from=build /source/target/backend-0.0.1-SNAPSHOT.jar /app/backend.jar
 USER 10001:10001
-EXPOSE 8443
+# Render forwards to $PORT (default 10000); staging overrides SERVER_PORT=8443.
+ENV PORT=10000
+EXPOSE 10000 8443
 ENTRYPOINT ["java", "-XX:MaxRAMPercentage=65.0", "-jar", "/app/backend.jar"]

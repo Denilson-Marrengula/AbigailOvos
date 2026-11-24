@@ -22,6 +22,8 @@ public class Product {
     private BigDecimal price;
     @Column(nullable = false)
     private boolean active = true;
+    @Column(name = "minimum_stock", precision = 19, scale = 2)
+    private BigDecimal minimumStock;
     @Column(name = "created_at", nullable = false, updatable = false)
     private Instant createdAt;
     @Column(name = "updated_at", nullable = false)
@@ -70,6 +72,12 @@ public class Product {
 
     public boolean isActive() { return active; }
 
+    public BigDecimal getMinimumStock() { return minimumStock; }
+
+    public String getMinimumStockText() {
+        return minimumStock == null ? null : minimumStock.toPlainString();
+    }
+
     void update(String name, String unit, BigDecimal price) {
         this.name = name.strip();
         this.unit = unit.strip();
@@ -79,6 +87,11 @@ public class Product {
 
     void setActive(boolean active) {
         this.active = active;
+        this.updatedAt = Instant.now();
+    }
+
+    void setMinimumStock(BigDecimal minimumStock) {
+        this.minimumStock = minimumStock;
         this.updatedAt = Instant.now();
     }
 }

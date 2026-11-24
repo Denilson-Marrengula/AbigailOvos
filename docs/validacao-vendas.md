@@ -9,6 +9,7 @@
 - Um teste adicional enviou simultaneamente a mesma operação duas vezes: as duas respostas referiram a mesma venda, sem duplicar o cliente ou a reserva. A gestão de vendedores foi testada com HTTPS e MySQL isolado para criação com perfil, edição, desativação, reativação e negação de acesso a vendedor.
 - No MySQL isolado foram testados movimentos de stock pelo vendedor, recusa ao administrador, respeito pelas reservas, impedimento de saldo negativo e reenvio simultâneo do mesmo movimento sem duplicação. A coluna histórica `administrator` continua a guardar o utilizador responsável.
 - Em 09/11/2026, um teste HTTPS/MySQL isolado confirmou que vendedor não acede ao relatório e que uma venda entregue e paga e um pedido pendente alteram corretamente os totais decimais e o desempenho por vendedor. Testes H2 adicionais cobrem cancelados, relatório vazio, valores elevados e acesso não autenticado.
+- Em 09/11/2026 a migração V8 de auditoria foi aplicada à base MySQL isolada de testes de vendas, anteriormente em V7; o Flyway e o Hibernate validaram o esquema. A base habitual não foi migrada. Em H2 testaram-se o controlo de acesso à auditoria, a ausência de segredos no retorno, reenvios sem duplicação e reversão da operação quando a auditoria falha. Um teste HTTPS/MySQL isolado confirmou a gravação de eventos de criação de vendedor, vendas e stock e a recusa de consulta ao vendedor.
 - Os testes Flutter e a análise estática passaram. Estes testes usam serviços simulados e **não** substituem o teste no dispositivo.
 
 ## Limites e cuidados

@@ -24,6 +24,12 @@ public class AppUser {
     private String displayName;
     @Column(length = 40)
     private String phone;
+    @Column(name = "must_change_password", nullable = false)
+    private boolean mustChangePassword;
+    @Column(name = "temporary_password_expires_at")
+    private Instant temporaryPasswordExpiresAt;
+    @Column(name = "session_epoch", nullable = false)
+    private long sessionEpoch;
 
     protected AppUser() {
     }
@@ -58,7 +64,31 @@ public class AppUser {
     }
 
     void setEnabled(boolean enabled) {
+        if (this.enabled != enabled) invalidateSessions();
         this.enabled = enabled;
+    }
+
+    boolean mustChangePassword() { return mustChangePassword; }
+    Instant temporaryPasswordExpiresAt() { return temporaryPasswordExpiresAt; }
+    long sessionEpoch() { return sessionEpoch; }
+
+    void invalidateSessions() {
+        if (sessionEpoch == Long.MAX_VALUE) throw new IllegalStateException("Não foi possível revogar as sessões.");
+        sessionEpoch++;
+    }
+
+    void setTemporaryPassword(String hash, Instant expiresAt) {
+        invalidateSessions();
+        this.passwordHash = hash;
+        this.mustChangePassword = true;
+        this.temporaryPasswordExpiresAt = expiresAt;
+    }
+
+    void changePassword(String hash) {
+        invalidateSessions();
+        this.passwordHash = hash;
+        this.mustChangePassword = false;
+        this.temporaryPasswordExpiresAt = null;
     }
 
     public String getDisplayName() { return displayName; }

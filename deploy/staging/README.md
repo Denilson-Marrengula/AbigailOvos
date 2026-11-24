@@ -1,6 +1,6 @@
 # Preparação de servidor de testes isolado
 
-Esta configuração é uma **preparação, ainda não validada num servidor Docker**. É apenas para dados e contas fictícios, não para produção. O MySQL fica numa rede interna, sem porta publicada; a API HTTPS escuta somente em `127.0.0.1:18443` do servidor. O acesso remoto de teste deve ser feito por túnel SSH, apenas por pessoas autorizadas. Não abrir esta porta à internet nem usar encaminhamento público enquanto a autenticação, proteção contra abuso e auditoria não estiverem concluídas.
+Esta configuração é uma **preparação, ainda não validada num servidor Docker**. É apenas para dados e contas fictícios, não para produção. O MySQL fica numa rede interna, sem porta publicada; a API HTTPS escuta somente em `127.0.0.1:18443` do servidor. O acesso remoto de teste deve ser feito por túnel SSH, apenas por pessoas autorizadas. Não abrir esta porta à internet nem usar encaminhamento público enquanto a autenticação, proteção contra abuso e auditoria não estiverem concluídas. A limitação preliminar por endereço vê o endereço da ligação ao contentor, que pode ser partilhado por utilizadores do túnel ou da rede Docker; após cinco falhas, todos os que apareçam com esse endereço podem ficar temporariamente bloqueados.
 
 ## Pré-requisitos
 
@@ -63,4 +63,4 @@ O APK debug atual foi configurado para o certificado e endereço locais de outro
 - `docker compose stop` para os serviços sem eliminar o volume. Não usar `docker compose down -v`, `docker volume rm` ou recriar a base se existir informação a preservar.
 - O volume persistente não é uma cópia de segurança. Antes de usar qualquer dado importante, definir cópias externas cifradas, retenção, controlo de acesso e ensaios de restauro. Este ambiente deve conter somente dados fictícios.
 - As imagens de base usam tags de versão e não estão fixadas por digest; devem ser revistas, atualizadas e testadas antes de qualquer implantação. Ainda não foram feitos testes de carga, restauro, exposição, segurança ou integração do contentor nesta configuração.
-- Não usar este ambiente para operações reais: faltam, entre outras medidas, proteção contra tentativas abusivas, recuperação de acesso e auditoria completa.
+- Não usar este ambiente para operações reais: faltam, entre outras medidas, proteção abrangente contra tentativas abusivas, recuperação de acesso e auditoria completa.

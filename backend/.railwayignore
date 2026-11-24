@@ -1,0 +1,12 @@
+# Evitar enviar builds locais e possíveis segredos ao Railway.
+target/
+.env
+.env.*
+*.p12
+*.pfx
+*.pem
+*.key
+*.jks
+*.db
+*.sqlite
+*.sqlite3

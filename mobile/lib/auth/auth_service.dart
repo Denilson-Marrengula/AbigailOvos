@@ -1,26 +1,59 @@
+import 'dart:async';
 import 'dart:convert';
 import 'dart:io';
 
 import 'package:flutter/foundation.dart';
 
+import 'activity_report.dart';
+export 'activity_report.dart';
+
 class AuthSession {
-  const AuthSession({required this.username, required this.roles});
+  const AuthSession({
+    required this.username,
+    required this.roles,
+    this.mustChangePassword = false,
+  });
   final String username;
   final List<String> roles;
+  final bool mustChangePassword;
   bool get isAdmin => roles.contains('ROLE_ADMIN');
 }
 
 abstract interface class AuthService {
   Future<AuthSession> login(String username, String password);
   Future<List<Product>> products();
+  Future<void> createProduct(String name, String unit, String price);
+  Future<void> updateProduct(String id, String name, String unit, String price);
+  Future<void> setProductActive(String id, bool active);
+  Future<void> setMinimumStock(String id, String? quantity);
   Future<List<Customer>> customers();
   Future<Customer> createCustomer(String name, String? phone);
+  Future<Customer> updateCustomer(String id, String name, String? phone);
   Future<StockBalance> stockBalance(String productId);
   Future<void> createStockMovement(Map<String, dynamic> request);
   Future<List<SaleRecord>> sales();
-  Future<SalesReport> salesReport();
+  Future<SaleSearchPage> searchSales({
+    int page = 0,
+    int size = 20,
+    String? customer,
+    String? product,
+    String? seller,
+    String state = 'ALL',
+    DateTime? from,
+    DateTime? to,
+  });
+  Future<SalesReport> salesReport({DateTime? from, DateTime? to});
+  Future<ActivityReport> activityReport({
+    required DateTime from,
+    required DateTime to,
+  });
+  Future<List<AuditRecord>> auditEvents({int page = 0, int size = 30});
   Future<void> createSale(Map<String, dynamic> request);
-  Future<void> changeSale(String id, String action);
+  Future<void> changeSale(
+    String id,
+    String action, {
+    PaymentMethod? paymentMethod,
+  });
   Future<List<SellerAccount>> sellers();
   Future<void> createSeller(
     String username,
@@ -29,8 +62,17 @@ abstract interface class AuthService {
     String? phone,
   );
   Future<void> updateSeller(String id, String name, String? phone);
+  Future<TemporarySellerPassword> resetSellerPassword(String id);
+  Future<void> changePassword(String currentPassword, String newPassword);
   Future<void> setSellerEnabled(String id, bool enabled);
-  void logout();
+  Future<void> deleteSeller(String id);
+  Future<void> logout();
+}
+
+class TemporarySellerPassword {
+  const TemporarySellerPassword({required this.value, required this.expiresAt});
+  final String value;
+  final DateTime expiresAt;
 }
 
 class SellerPerformance {
@@ -55,6 +97,12 @@ class SalesReport {
     required this.markedPaidAmount,
     required this.pendingPaymentAmount,
     required this.sellers,
+    this.unknownDeliveredDates = 0,
+    this.unknownPaidDates = 0,
+    this.unknownCancelledDates = 0,
+    this.periodStart,
+    this.periodEnd,
+    this.eventDatesSupported = true,
   });
   final int pendingOrders;
   final int deliveredSales;
@@ -65,6 +113,40 @@ class SalesReport {
   final String markedPaidAmount;
   final String pendingPaymentAmount;
   final List<SellerPerformance> sellers;
+  final int unknownDeliveredDates;
+  final int unknownPaidDates;
+  final int unknownCancelledDates;
+  final String? periodStart;
+  final String? periodEnd;
+  final bool eventDatesSupported;
+}
+
+class SaleSearchPage {
+  const SaleSearchPage({
+    required this.items,
+    required this.page,
+    required this.hasMore,
+  });
+  final List<SaleRecord> items;
+  final int page;
+  final bool hasMore;
+}
+
+class AuditRecord {
+  const AuditRecord({
+    required this.actor,
+    required this.action,
+    required this.targetType,
+    required this.targetId,
+    required this.detail,
+    required this.occurredAt,
+  });
+  final String actor;
+  final String action;
+  final String targetType;
+  final String targetId;
+  final String detail;
+  final DateTime occurredAt;
 }
 
 class SellerAccount {
@@ -82,6 +164,25 @@ class SellerAccount {
   final String? phone;
 }
 
+enum PaymentMethod {
+  emola('EMOLA', 'e-Mola'),
+  mpesa('MPESA', 'M-Pesa'),
+  bank('BANK', 'Banco'),
+  cash('CASH', 'Dinheiro');
+
+  const PaymentMethod(this.code, this.label);
+  final String code;
+  final String label;
+}
+
+String paymentMethodLabel(String? code) {
+  if (code == null) return 'Não informado';
+  for (final method in PaymentMethod.values) {
+    if (method.code == code) return method.label;
+  }
+  return 'Desconhecido';
+}
+
 class SaleRecord {
   const SaleRecord({
     required this.id,
@@ -93,12 +194,14 @@ class SaleRecord {
     required this.items,
     this.totalText,
     this.createdAt,
+    this.paymentMethod,
   });
   final String id;
   final String customerName;
   final String seller;
   final String delivery;
   final String payment;
+  final String? paymentMethod;
   final num total;
   final String? totalText;
   final List<String> items;
@@ -110,10 +213,12 @@ class StockBalance {
     required this.physical,
     required this.reserved,
     required this.available,
+    this.availableText,
   });
   final num physical;
   final num reserved;
   final num available;
+  final String? availableText;
 }
 
 class Product {
@@ -123,12 +228,16 @@ class Product {
     required this.unit,
     required this.price,
     this.active = true,
+    this.minimumStock,
+    this.minimumStockSupported = true,
   });
   final String id;
   final String name;
   final String unit;
   final String price;
   final bool active;
+  final String? minimumStock;
+  final bool minimumStockSupported;
 }
 
 class Customer {
@@ -149,11 +258,13 @@ class AuthException implements Exception {
     this.message, {
     this.sessionExpired = false,
     this.definitelyRejected = false,
+    this.code,
   });
   final String message;
 
   final bool sessionExpired;
   final bool definitelyRejected;
+  final String? code;
 }
 
 class _RawResponse {
@@ -164,23 +275,77 @@ class _RawResponse {
 }
 
 class HttpAuthService implements AuthService {
-  HttpAuthService(this.baseUrl, {this.developmentCertificate = ''});
+  HttpAuthService(
+    this.baseUrl, {
+    this.developmentCertificate = '',
+    this.sessionMode = true,
+  }) : _readTimeout = const Duration(seconds: 90),
+       _writeTimeout = const Duration(seconds: 15);
+
+  @visibleForTesting
+  HttpAuthService.withTimeoutsForTesting(
+    this.baseUrl, {
+    this.developmentCertificate = '',
+    this.sessionMode = true,
+    required Duration readTimeout,
+    required Duration writeTimeout,
+  }) : assert(readTimeout > Duration.zero),
+       assert(writeTimeout > Duration.zero),
+       _readTimeout = readTimeout,
+       _writeTimeout = writeTimeout;
+
   final String baseUrl;
   final String developmentCertificate;
+  final Duration _readTimeout;
+  final Duration _writeTimeout;
+
+  /// `false` exists only for isolated compatibility tests against the old API.
+  final bool sessionMode;
   String? _authorization;
-  static const _timeout = Duration(seconds: 15);
+  AuthSession? _session;
+  int _generation = 0;
+  static const _connectionTimeout = Duration(seconds: 15);
   static const _invalidResponse = AuthException(
     'Resposta inválida do servidor.',
   );
 
   @override
   Future<AuthSession> login(String username, String password) async {
-    _authorization = null;
-    final authorization =
-        'Basic ${base64Encode(utf8.encode('$username:$password'))}';
-    final data = await _send('GET', 'api/me', authorization, login: true);
+    final previous = _authorization;
+    _clearAuthentication();
+    final generation = _generation;
+    if (!sessionMode && !kDebugMode) {
+      throw const AuthException(
+        'Este modo de autenticação não está disponível nesta versão.',
+      );
+    }
+    if (sessionMode && previous != null) {
+      await _revoke(previous);
+      if (generation != _generation) {
+        throw const AuthException(
+          'A sessão mudou. Inicie sessão novamente.',
+          sessionExpired: true,
+        );
+      }
+    }
+    final basic = sessionMode
+        ? null
+        : 'Basic ${base64Encode(utf8.encode('$username:$password'))}';
+    final data = sessionMode
+        ? await _send(
+            'POST',
+            'api/auth/login',
+            null,
+            body: {'username': username, 'password': password},
+            login: true,
+            okStatus: 200,
+          )
+        : await _send('GET', 'api/me', basic, login: true);
     if (data is! Map<String, dynamic> ||
         data['username'] is! String ||
+        (data['username'] as String).isEmpty ||
+        (data['mustChangePassword'] != null &&
+            data['mustChangePassword'] is! bool) ||
         data['roles'] is! List) {
       throw _invalidResponse;
     }
@@ -188,13 +353,67 @@ class HttpAuthService implements AuthService {
     if (!roles.contains('ROLE_ADMIN') && !roles.contains('ROLE_SELLER')) {
       throw const AuthException('Esta conta não tem um perfil autorizado.');
     }
+    String authorization;
+    if (sessionMode) {
+      final token = data['token'];
+      final expiresAt = data['expiresAt'];
+      if (token is! String ||
+          !_validSessionToken(token) ||
+          expiresAt is! String ||
+          DateTime.tryParse(expiresAt) == null) {
+        throw _invalidResponse;
+      }
+      authorization = 'Bearer $token';
+    } else {
+      authorization = basic!;
+    }
+    if (generation != _generation) {
+      throw const AuthException(
+        'A sessão mudou. Inicie sessão novamente.',
+        sessionExpired: true,
+      );
+    }
+    final session = AuthSession(
+      username: data['username'] as String,
+      roles: roles,
+      mustChangePassword: data['mustChangePassword'] == true,
+    );
     _authorization = authorization;
-    return AuthSession(username: data['username'] as String, roles: roles);
+    _session = session;
+    return session;
   }
 
   @override
-  void logout() {
+  Future<void> logout() async {
+    final previous = _authorization;
+    _clearAuthentication();
+    if (!sessionMode || previous == null) return;
+    await _revoke(previous);
+  }
+
+  Future<void> _revoke(String previous) async {
+    try {
+      await _send('POST', 'api/auth/logout', previous, okStatus: 204);
+    } on AuthException catch (error) {
+      if (!error.sessionExpired) rethrow;
+    }
+  }
+
+  void _clearAuthentication() {
+    _generation++;
     _authorization = null;
+    _session = null;
+  }
+
+  static bool _validSessionToken(String token) {
+    if (!RegExp(r'^[A-Za-z0-9_-]{43}$').hasMatch(token)) return false;
+    try {
+      final bytes = base64Url.decode(base64Url.normalize(token));
+      return bytes.length == 32 &&
+          base64UrlEncode(bytes).replaceAll('=', '') == token;
+    } on FormatException {
+      return false;
+    }
   }
 
   @override
@@ -206,7 +425,9 @@ class HttpAuthService implements AuthService {
           item['id'] is! String ||
           item['name'] is! String ||
           item['unit'] is! String ||
-          item['price'] is! num) {
+          item['price'] is! num ||
+          (item['minimumStockText'] != null &&
+              item['minimumStockText'] is! String)) {
         throw _invalidResponse;
       }
       return Product(
@@ -217,8 +438,55 @@ class HttpAuthService implements AuthService {
             ? item['priceText'] as String
             : item['price'].toString(),
         active: item['active'] is bool ? item['active'] as bool : true,
+        minimumStock: item['minimumStockText'] as String?,
+        minimumStockSupported: item.containsKey('minimumStockText'),
       );
     }).toList();
+  }
+
+  @override
+  Future<void> createProduct(String name, String unit, String price) async {
+    await _send(
+      'POST',
+      'api/products',
+      _requireAuthorization(),
+      body: {'name': name, 'unit': unit, 'price': price},
+    );
+  }
+
+  @override
+  Future<void> updateProduct(
+    String id,
+    String name,
+    String unit,
+    String price,
+  ) async {
+    await _send(
+      'PUT',
+      'api/products/${Uri.encodeComponent(id)}',
+      _requireAuthorization(),
+      body: {'name': name, 'unit': unit, 'price': price},
+    );
+  }
+
+  @override
+  Future<void> setProductActive(String id, bool active) async {
+    await _send(
+      'PATCH',
+      'api/products/${Uri.encodeComponent(id)}/status',
+      _requireAuthorization(),
+      body: {'active': active},
+    );
+  }
+
+  @override
+  Future<void> setMinimumStock(String id, String? quantity) async {
+    await _send(
+      quantity == null ? 'DELETE' : 'PUT',
+      'api/products/${Uri.encodeComponent(id)}/minimum-stock',
+      _requireAuthorization(),
+      body: quantity == null ? null : {'minimumStock': quantity},
+    );
   }
 
   @override
@@ -230,6 +498,7 @@ class HttpAuthService implements AuthService {
 
   @override
   Future<Customer> createCustomer(String name, String? phone) async {
+    await _requireSalesCapabilities(customerPhone: true);
     final data = await _send(
       'POST',
       'api/customers',
@@ -238,6 +507,18 @@ class HttpAuthService implements AuthService {
         'name': name,
         if (phone != null && phone.isNotEmpty) 'phone': phone,
       },
+    );
+    return _customerFrom(data);
+  }
+
+  @override
+  Future<Customer> updateCustomer(String id, String name, String? phone) async {
+    await _requireSalesCapabilities(customerPhone: true);
+    final data = await _send(
+      'PUT',
+      'api/customers/${Uri.encodeComponent(id)}',
+      _requireAuthorization(),
+      body: {'name': name, 'phone': phone},
     );
     return _customerFrom(data);
   }
@@ -252,13 +533,15 @@ class HttpAuthService implements AuthService {
     if (data is! Map ||
         data['quantity'] is! num ||
         data['reserved'] is! num ||
-        data['available'] is! num) {
+        data['available'] is! num ||
+        (data['availableText'] != null && data['availableText'] is! String)) {
       throw _invalidResponse;
     }
     return StockBalance(
       physical: data['quantity'] as num,
       reserved: data['reserved'] as num,
       available: data['available'] as num,
+      availableText: data['availableText'] as String?,
     );
   }
 
@@ -274,50 +557,180 @@ class HttpAuthService implements AuthService {
 
   @override
   Future<List<SaleRecord>> sales() async {
+    await _requireSalesCapabilities();
+    final session = _session;
+    if (session == null) {
+      throw const AuthException(
+        'Inicie sessão novamente.',
+        sessionExpired: true,
+      );
+    }
     final data = await _send('GET', 'api/sales', _requireAuthorization());
+    if (!identical(session, _session)) {
+      throw const AuthException(
+        'A sessão mudou. Inicie sessão novamente.',
+        sessionExpired: true,
+      );
+    }
     if (data is! List) throw _invalidResponse;
-    return data.map((item) {
-      if (item is! Map ||
-          item['id'] is! String ||
-          item['customerName'] is! String ||
-          item['seller'] is! String ||
-          item['deliveryStatus'] is! String ||
-          item['paymentStatus'] is! String ||
-          item['total'] is! num ||
-          (item['totalText'] != null && item['totalText'] is! String) ||
-          item['items'] is! List ||
-          item['createdAt'] is! String ||
-          DateTime.tryParse(item['createdAt'] as String) == null) {
+    return data.map((item) => _saleFrom(item, session)).toList();
+  }
+
+  SaleRecord _saleFrom(dynamic item, AuthSession session) {
+    if (item is! Map ||
+        item['id'] is! String ||
+        item['customerName'] is! String ||
+        item['seller'] is! String ||
+        item['deliveryStatus'] is! String ||
+        item['paymentStatus'] is! String ||
+        (item['paymentMethod'] != null && item['paymentMethod'] is! String) ||
+        item['total'] is! num ||
+        (item['totalText'] != null && item['totalText'] is! String) ||
+        item['items'] is! List ||
+        item['createdAt'] is! String ||
+        DateTime.tryParse(item['createdAt'] as String) == null) {
+      throw _invalidResponse;
+    }
+    if (!session.isAdmin && item['seller'] != session.username) {
+      throw const AuthException(
+        'O servidor devolveu operações de outro vendedor. A lista não será apresentada.',
+      );
+    }
+    final lines = (item['items'] as List).map((line) {
+      if (line is! Map ||
+          line['productName'] is! String ||
+          line['quantity'] is! num ||
+          line['unit'] is! String) {
         throw _invalidResponse;
       }
-      final lines = (item['items'] as List).map((line) {
-        if (line is! Map ||
-            line['productName'] is! String ||
-            line['quantity'] is! num ||
-            line['unit'] is! String) {
-          throw _invalidResponse;
-        }
-        return '${line['quantity']} ${line['unit']} · ${line['productName']}';
-      }).toList();
-      return SaleRecord(
-        id: item['id'],
-        customerName: item['customerName'],
-        seller: item['seller'],
-        delivery: item['deliveryStatus'],
-        payment: item['paymentStatus'],
-        total: item['total'],
-        totalText: item['totalText'] as String?,
-        items: lines,
-        createdAt: DateTime.parse(item['createdAt'] as String),
-      );
+      return '${line['quantity']} ${line['unit']} · ${line['productName']}';
     }).toList();
+    return SaleRecord(
+      id: item['id'],
+      customerName: item['customerName'],
+      seller: item['seller'],
+      delivery: item['deliveryStatus'],
+      payment: item['paymentStatus'],
+      paymentMethod: item['paymentMethod'] as String?,
+      total: item['total'],
+      totalText: item['totalText'] as String?,
+      items: lines,
+      createdAt: DateTime.parse(item['createdAt'] as String),
+    );
   }
 
   @override
-  Future<SalesReport> salesReport() async {
+  Future<SaleSearchPage> searchSales({
+    int page = 0,
+    int size = 20,
+    String? customer,
+    String? product,
+    String? seller,
+    String state = 'ALL',
+    DateTime? from,
+    DateTime? to,
+  }) async {
+    await _requireSalesCapabilities();
+    final session = _session;
+    if (session == null) {
+      throw const AuthException(
+        'Inicie sessão novamente.',
+        sessionExpired: true,
+      );
+    }
+    final params = <String, String>{
+      'page': '$page',
+      'size': '$size',
+      'state': state,
+      if (customer != null && customer.trim().isNotEmpty)
+        'customer': customer.trim(),
+      if (product != null && product.trim().isNotEmpty)
+        'product': product.trim(),
+      if (seller != null && seller.trim().isNotEmpty) 'seller': seller.trim(),
+      if (from != null) 'from': _dateOnly(from),
+      if (to != null) 'to': _dateOnly(to),
+    };
+    final path = Uri(
+      path: 'api/sales/search',
+      queryParameters: params,
+    ).toString();
+    final data = await _send('GET', path, _requireAuthorization());
+    if (!identical(session, _session)) {
+      throw const AuthException(
+        'A sessão mudou. Inicie sessão novamente.',
+        sessionExpired: true,
+      );
+    }
+    if (data is! Map ||
+        data['items'] is! List ||
+        data['page'] != page ||
+        data['hasMore'] is! bool) {
+      throw _invalidResponse;
+    }
+    return SaleSearchPage(
+      items: (data['items'] as List)
+          .map((item) => _saleFrom(item, session))
+          .toList(),
+      page: page,
+      hasMore: data['hasMore'] as bool,
+    );
+  }
+
+  static String _dateOnly(DateTime date) =>
+      '${date.year.toString().padLeft(4, '0')}-${date.month.toString().padLeft(2, '0')}-${date.day.toString().padLeft(2, '0')}';
+
+  @override
+  Future<ActivityReport> activityReport({
+    required DateTime from,
+    required DateTime to,
+  }) async {
+    final session = _session;
+    if (session == null) {
+      throw const AuthException(
+        'Inicie sessão novamente.',
+        sessionExpired: true,
+      );
+    }
+    if (!session.isAdmin) {
+      throw const AuthException(
+        'Não tem permissão para esta operação.',
+        definitelyRejected: true,
+      );
+    }
+    final start = _dateOnly(from);
+    final end = _dateOnly(to);
+    final path = Uri(
+      path: 'api/reports/activity',
+      queryParameters: {'from': start, 'to': end},
+    ).toString();
+    final data = await _send('GET', path, _requireAuthorization());
+    if (!identical(session, _session)) {
+      throw const AuthException(
+        'A sessão mudou. Inicie sessão novamente.',
+        sessionExpired: true,
+      );
+    }
+    try {
+      return ActivityReport.fromJson(data, from: start, to: end);
+    } on FormatException {
+      throw _invalidResponse;
+    }
+  }
+
+  @override
+  Future<SalesReport> salesReport({DateTime? from, DateTime? to}) async {
+    if ((from == null) != (to == null)) {
+      throw const AuthException('Indique o início e o fim do período.');
+    }
+    final params = <String, String>{
+      if (from != null) 'from': _dateOnly(from),
+      if (to != null) 'to': _dateOnly(to),
+    };
     final data = await _send(
       'GET',
-      'api/reports/sales',
+      params.isEmpty
+          ? 'api/reports/sales'
+          : Uri(path: 'api/reports/sales', queryParameters: params).toString(),
       _requireAuthorization(),
     );
     bool money(dynamic value) =>
@@ -331,8 +744,22 @@ class HttpAuthService implements AuthService {
         !money(data['deliveredAmount']) ||
         !money(data['markedPaidAmount']) ||
         !money(data['pendingPaymentAmount']) ||
+        (data['periodStart'] != null && data['periodStart'] is! String) ||
+        (data['periodEnd'] != null && data['periodEnd'] is! String) ||
         data['sellers'] is! List) {
       throw _invalidResponse;
+    }
+    // Older servers may ignore query parameters. Never show all-time figures as a selected period.
+    if (from != null &&
+        (data['periodStart'] != _dateOnly(from) ||
+            data['periodEnd'] != _dateOnly(to!) ||
+            data['timeZone'] != 'Africa/Maputo' ||
+            data['unknownDeliveredDates'] is! int ||
+            data['unknownPaidDates'] is! int ||
+            data['unknownCancelledDates'] is! int)) {
+      throw const AuthException(
+        'O servidor não suporta relatórios por período com datas de eventos.',
+      );
     }
     final sellers = (data['sellers'] as List).map((item) {
       if (item is! Map ||
@@ -357,23 +784,135 @@ class HttpAuthService implements AuthService {
       markedPaidAmount: data['markedPaidAmount'],
       pendingPaymentAmount: data['pendingPaymentAmount'],
       sellers: sellers,
+      unknownDeliveredDates: data['unknownDeliveredDates'] is int
+          ? data['unknownDeliveredDates']
+          : 0,
+      unknownPaidDates: data['unknownPaidDates'] is int
+          ? data['unknownPaidDates']
+          : 0,
+      unknownCancelledDates: data['unknownCancelledDates'] is int
+          ? data['unknownCancelledDates']
+          : 0,
+      periodStart: data['periodStart'] as String?,
+      periodEnd: data['periodEnd'] as String?,
+      eventDatesSupported:
+          data['timeZone'] == 'Africa/Maputo' &&
+          data['unknownDeliveredDates'] is int &&
+          data['unknownPaidDates'] is int &&
+          data['unknownCancelledDates'] is int,
     );
   }
 
   @override
-  Future<void> createSale(Map<String, dynamic> request) async {
-    await _send('POST', 'api/sales', _requireAuthorization(), body: request);
+  Future<List<AuditRecord>> auditEvents({int page = 0, int size = 30}) async {
+    final path = Uri(
+      path: 'api/audit/events',
+      queryParameters: {'page': '$page', 'size': '$size'},
+    ).toString();
+    final data = await _send('GET', path, _requireAuthorization());
+    if (data is! List) throw _invalidResponse;
+    return data.map((item) {
+      if (item is! Map ||
+          item['actor'] is! String ||
+          item['action'] is! String ||
+          item['targetType'] is! String ||
+          item['targetId'] is! String ||
+          item['detail'] is! String ||
+          item['occurredAt'] is! String ||
+          DateTime.tryParse(item['occurredAt'] as String) == null) {
+        throw _invalidResponse;
+      }
+      return AuditRecord(
+        actor: item['actor'],
+        action: item['action'],
+        targetType: item['targetType'],
+        targetId: item['targetId'],
+        detail: item['detail'],
+        occurredAt: DateTime.parse(item['occurredAt']),
+      );
+    }).toList();
   }
 
   @override
-  Future<void> changeSale(String id, String action) async {
+  Future<void> createSale(Map<String, dynamic> request) async {
+    await _requireSalesCapabilities(
+      paymentMethods: request['paid'] == true,
+      customerPhone: request['customer'] != null,
+    );
+    await _send('POST', 'api/sales', _requireAuthorization(), body: request);
+  }
+
+  Future<void> _requireSalesCapabilities({
+    bool paymentMethods = false,
+    bool customerPhone = false,
+  }) async {
+    final authorization = _requireAuthorization();
+    final session = _session;
+    if (session == null) {
+      throw const AuthException(
+        'Inicie sessão novamente.',
+        sessionExpired: true,
+      );
+    }
+    dynamic capabilities;
+    try {
+      capabilities = await _send(
+        'GET',
+        'api/sales/capabilities',
+        authorization,
+      );
+    } on AuthException catch (error) {
+      if (error.sessionExpired) rethrow;
+    }
+    if (!identical(session, _session) || _authorization != authorization) {
+      throw const AuthException(
+        'A sessão mudou. Inicie sessão novamente.',
+        sessionExpired: true,
+      );
+    }
+    if (capabilities is! Map ||
+        capabilities['sellerSalesIsolation'] != true ||
+        capabilities['adminSaleAssistance'] != true) {
+      throw const AuthException(
+        'Não foi possível confirmar as permissões de vendas neste servidor. Atualize o servidor antes de usar as vendas.',
+        definitelyRejected: true,
+      );
+    }
+    if (paymentMethods && capabilities['paymentMethods'] != true) {
+      throw const AuthException(
+        'Não foi possível confirmar que o servidor guarda o meio de pagamento. Nenhum pagamento foi enviado.',
+        definitelyRejected: true,
+      );
+    }
+    if (customerPhone && capabilities['customerPhoneUnique'] != true) {
+      throw const AuthException(
+        'Não foi possível confirmar a proteção contra telefones duplicados. Atualize o servidor antes de guardar clientes.',
+        definitelyRejected: true,
+      );
+    }
+  }
+
+  @override
+  Future<void> changeSale(
+    String id,
+    String action, {
+    PaymentMethod? paymentMethod,
+  }) async {
     if (!const {'deliver', 'cancel', 'pay'}.contains(action)) {
       throw _invalidResponse;
     }
+    if ((action == 'pay') != (paymentMethod != null)) {
+      throw const AuthException(
+        'Selecione um meio de pagamento.',
+        definitelyRejected: true,
+      );
+    }
+    await _requireSalesCapabilities(paymentMethods: action == 'pay');
     await _send(
       'PATCH',
       'api/sales/${Uri.encodeComponent(id)}/$action',
       _requireAuthorization(),
+      body: paymentMethod == null ? null : {'method': paymentMethod.code},
     );
   }
 
@@ -436,12 +975,57 @@ class HttpAuthService implements AuthService {
   }
 
   @override
+  Future<TemporarySellerPassword> resetSellerPassword(String id) async {
+    final data = await _send(
+      'PATCH',
+      'api/users/${Uri.encodeComponent(id)}/password-reset',
+      _requireAuthorization(),
+    );
+    if (data is! Map ||
+        data['temporaryPassword'] is! String ||
+        !RegExp(r'^[A-Za-z0-9_-]{32}$')
+            .hasMatch(data['temporaryPassword'] as String) ||
+        data['expiresAt'] is! String ||
+        DateTime.tryParse(data['expiresAt'] as String) == null) {
+      throw _invalidResponse;
+    }
+    return TemporarySellerPassword(
+      value: data['temporaryPassword'] as String,
+      expiresAt: DateTime.parse(data['expiresAt'] as String),
+    );
+  }
+
+  @override
+  Future<void> changePassword(
+    String currentPassword,
+    String newPassword,
+  ) async {
+    await _send(
+      'PUT',
+      'api/account/password',
+      _requireAuthorization(),
+      body: {'currentPassword': currentPassword, 'newPassword': newPassword},
+    );
+    // A successful password change invalidates the server-side session epoch.
+    _clearAuthentication();
+  }
+
+  @override
   Future<void> setSellerEnabled(String id, bool enabled) async {
     await _send(
       'PATCH',
       'api/users/${Uri.encodeComponent(id)}/status',
       _requireAuthorization(),
       body: {'enabled': enabled},
+    );
+  }
+
+  @override
+  Future<void> deleteSeller(String id) async {
+    await _send(
+      'DELETE',
+      'api/users/${Uri.encodeComponent(id)}',
+      _requireAuthorization(),
     );
   }
 
@@ -501,7 +1085,8 @@ class HttpAuthService implements AuthService {
         throw const AuthException('Certificado de desenvolvimento inválido.');
       }
     }
-    return HttpClient(context: securityContext)..connectionTimeout = _timeout;
+    return HttpClient(context: securityContext)
+      ..connectionTimeout = _connectionTimeout;
   }
 
   Future<_RawResponse> _call(
@@ -509,15 +1094,27 @@ class HttpAuthService implements AuthService {
     Uri base,
     String method,
     String path,
-    String authorization,
+    String? authorization,
     Map<String, String> headers,
     Object? body,
   ) async {
+    // Use one deadline for each request, including the response body. A GET,
+    // including the CSRF preflight, can wake a sleeping service. Never retry a
+    // write automatically: a timeout does not prove it was not applied.
+    final timeout = method == 'GET' ? _readTimeout : _writeTimeout;
+    final elapsed = Stopwatch()..start();
+    Duration remaining() {
+      final time = timeout - elapsed.elapsed;
+      return time > Duration.zero ? time : Duration.zero;
+    }
+
     final request = await client
         .openUrl(method, base.resolve(path))
-        .timeout(_timeout);
+        .timeout(remaining());
     request.followRedirects = false;
-    request.headers.set(HttpHeaders.authorizationHeader, authorization);
+    if (authorization != null) {
+      request.headers.set(HttpHeaders.authorizationHeader, authorization);
+    }
     request.headers.set(HttpHeaders.acceptHeader, 'application/json');
     for (final entry in headers.entries) {
       request.headers.set(entry.key, entry.value);
@@ -526,11 +1123,11 @@ class HttpAuthService implements AuthService {
       request.headers.contentType = ContentType.json;
       request.add(utf8.encode(jsonEncode(body)));
     }
-    final response = await request.close().timeout(_timeout);
+    final response = await request.close().timeout(remaining());
     final text = await response
         .transform(utf8.decoder)
         .join()
-        .timeout(_timeout);
+        .timeout(remaining());
     return _RawResponse(response.statusCode, text, response.cookies);
   }
 
@@ -559,6 +1156,17 @@ class HttpAuthService implements AuthService {
           'Operação não permitida, preço alterado ou stock disponível insuficiente. Atualize os dados.',
           definitelyRejected: true,
         );
+      case 429:
+        throw const AuthException(
+          'Muitas tentativas de acesso nesta rede. Aguarde alguns minutos e tente novamente.',
+          definitelyRejected: true,
+        );
+      case 502:
+      case 503:
+      case 504:
+        throw const AuthException(
+          'O servidor está temporariamente indisponível. Verifique a ligação.',
+        );
       default:
         throw const AuthException(
           'O servidor não conseguiu processar o pedido.',
@@ -574,9 +1182,10 @@ class HttpAuthService implements AuthService {
   Future<dynamic> _send(
     String method,
     String path,
-    String authorization, {
+    String? authorization, {
     Object? body,
     bool login = false,
+    int? okStatus,
   }) async {
     final base = _baseUri();
     final client = _newClient(base);
@@ -592,7 +1201,7 @@ class HttpAuthService implements AuthService {
           const {},
           null,
         );
-        _check(csrf, login: false, ok: 200);
+        _check(csrf, login: login, ok: 200);
         final token = _decode(csrf);
         if (token is! Map ||
             token['headerName'] is! String ||
@@ -615,11 +1224,40 @@ class HttpAuthService implements AuthService {
         headers,
         body,
       );
+      if (method == 'GET' && path.startsWith('api/reports/activity?')) {
+        if (response.status == 413) {
+          throw const AuthException(
+            'Relatório demasiado grande para apresentar ou imprimir integralmente. É necessária uma consulta paginada.',
+          );
+        }
+        if (response.status == 404) {
+          throw const AuthException(
+            'O servidor ainda não suporta os relatórios detalhados.',
+          );
+        }
+      }
       if (method == 'POST' && path == 'api/users' && response.status == 409) {
         throw const AuthException(
           'Já existe uma conta com este utilizador.',
           definitelyRejected: true,
         );
+      }
+      if (response.status == 409 &&
+          ((method == 'POST' && path == 'api/sales') ||
+              (method == 'PUT' && path.startsWith('api/customers/')))) {
+        dynamic conflict;
+        try {
+          conflict = _decode(response);
+        } on FormatException {
+          /* Resposta genérica. */
+        }
+        if (conflict is Map && conflict['code'] == 'CUSTOMER_PHONE_EXISTS') {
+          throw const AuthException(
+            'Este telefone já pertence a outro cliente. Atualize a lista e selecione o cliente existente.',
+            definitelyRejected: true,
+            code: 'CUSTOMER_PHONE_EXISTS',
+          );
+        }
       }
       if (method == 'POST' &&
           path == 'api/stock/movements' &&
@@ -629,12 +1267,26 @@ class HttpAuthService implements AuthService {
           definitelyRejected: true,
         );
       }
-      _check(response, login: login, ok: method == 'POST' ? 201 : 200);
+      _check(
+        response,
+        login: login,
+        ok:
+            okStatus ??
+            switch (method) {
+              'POST' => 201,
+              'DELETE' => 204,
+              _ => 200,
+            },
+      );
       return _decode(response);
     } on AuthException {
       rethrow;
     } on FormatException {
       throw _invalidResponse;
+    } on TimeoutException {
+      throw const AuthException(
+        'O servidor demorou demasiado a responder. Verifique a ligação.',
+      );
     } catch (_) {
       throw const AuthException(
         'Não foi possível contactar o servidor. Verifique a ligação.',

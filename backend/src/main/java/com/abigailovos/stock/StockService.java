@@ -1,6 +1,7 @@
 package com.abigailovos.stock;
 
 import com.abigailovos.product.Product;
+import com.abigailovos.audit.AuditLog;
 import jakarta.persistence.EntityManager;
 import jakarta.persistence.LockModeType;
 import java.math.BigDecimal;
@@ -17,9 +18,10 @@ import static org.springframework.http.HttpStatus.*;
 public class StockService {
     private final EntityManager entityManager;
     private final StockMovementRepository movements;
+    private final AuditLog audit;
 
-    StockService(EntityManager entityManager, StockMovementRepository movements) {
-        this.entityManager = entityManager; this.movements = movements;
+    StockService(EntityManager entityManager, StockMovementRepository movements, AuditLog audit) {
+        this.entityManager = entityManager; this.movements = movements; this.audit = audit;
     }
 
     @Transactional(isolation = org.springframework.transaction.annotation.Isolation.READ_COMMITTED)
@@ -47,7 +49,10 @@ public class StockService {
             StockMovement movement = new StockMovement(operationId, productId, actorReference,
                     type, quantity, direction, reason, Instant.now());
             movement.applyTo(available(productId.toString()));
-            return movements.save(new StockMovementEntity(movement, actor));
+            StockMovementEntity saved = movements.save(new StockMovementEntity(movement, actor));
+            audit.record(actor, "STOCK_MOVEMENT_CREATED", "STOCK_MOVEMENT", saved.getId(),
+                    "type=" + type + ";direction=" + direction);
+            return saved;
         } catch (IllegalArgumentException ex) {
             throw new ResponseStatusException(BAD_REQUEST, ex.getMessage());
         }

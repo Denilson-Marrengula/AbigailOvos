@@ -11,7 +11,8 @@ import static org.mockito.Mockito.*;
 class InitialAdminTest {
     private final AppUserRepository users = mock(AppUserRepository.class);
     private final BCryptPasswordEncoder encoder = new BCryptPasswordEncoder();
-    private final InitialAdmin.AdminProvisioner provisioner = new InitialAdmin.AdminProvisioner(users, encoder);
+    private final UsernameReservations reservations = mock(UsernameReservations.class);
+    private final InitialAdmin.AdminProvisioner provisioner = new InitialAdmin.AdminProvisioner(users, encoder, reservations);
 
     @Test
     void createsOnlyAdminWithHashedPassword() {
@@ -49,6 +50,8 @@ class InitialAdminTest {
             var seller = context.getBean(AppUserRepository.class).findByUsername("vendedor").orElseThrow();
             assertThat(seller.getRole()).isEqualTo("SELLER");
             assertThat(encoder.matches("other-test-password", seller.getPasswordHash())).isTrue();
+            assertThat(seller.mustChangePassword()).isTrue();
+            assertThat(seller.temporaryPasswordExpiresAt()).isNotNull();
         }
     }
 }

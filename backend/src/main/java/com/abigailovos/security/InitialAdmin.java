@@ -1,6 +1,8 @@
 package com.abigailovos.security;
 
 import java.util.regex.Pattern;
+import java.time.Duration;
+import java.time.Instant;
 import org.springframework.boot.ApplicationRunner;
 import org.springframework.boot.autoconfigure.condition.ConditionalOnProperty;
 import org.springframework.context.annotation.Bean;
@@ -27,8 +29,8 @@ class InitialAdmin {
     }
 
     @Bean
-    AdminProvisioner adminProvisioner(AppUserRepository users, PasswordEncoder encoder) {
-        return new AdminProvisioner(users, encoder);
+    AdminProvisioner adminProvisioner(AppUserRepository users, PasswordEncoder encoder, UsernameReservations reservations) {
+        return new AdminProvisioner(users, encoder, reservations);
     }
 
     static class AdminProvisioner {
@@ -36,10 +38,12 @@ class InitialAdmin {
         private static final Pattern PASSWORD = Pattern.compile("[\\x20-\\x7E]{12,72}");
         private final AppUserRepository users;
         private final PasswordEncoder encoder;
+        private final UsernameReservations reservations;
 
-        AdminProvisioner(AppUserRepository users, PasswordEncoder encoder) {
+        AdminProvisioner(AppUserRepository users, PasswordEncoder encoder, UsernameReservations reservations) {
             this.users = users;
             this.encoder = encoder;
+            this.reservations = reservations;
         }
 
         @Transactional
@@ -54,9 +58,14 @@ class InitialAdmin {
             if (users.count() != 0) {
                 throw new IllegalStateException("Inicialização recusada: já existem contas");
             }
-            users.saveAndFlush(new AppUser(username, encoder.encode(password), "ADMIN"));
+            AppUser admin = new AppUser(username, encoder.encode(password), "ADMIN");
+            reservations.reserve(admin);
+            users.saveAndFlush(admin);
             if (sellerUsername != null) {
-                users.saveAndFlush(new AppUser(sellerUsername, encoder.encode(sellerPassword), "SELLER"));
+                AppUser seller = new AppUser(sellerUsername, encoder.encode(sellerPassword), "SELLER");
+                seller.setTemporaryPassword(seller.getPasswordHash(), Instant.now().plus(Duration.ofHours(24)));
+                reservations.reserve(seller);
+                users.saveAndFlush(seller);
             }
         }
 

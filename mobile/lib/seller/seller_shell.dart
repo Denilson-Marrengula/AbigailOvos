@@ -3,6 +3,7 @@ import 'package:flutter/material.dart';
 import '../auth/auth_service.dart';
 import '../auth/login_page.dart';
 import '../design/app_logo.dart';
+import '../design/app_navigation_drawer.dart';
 import 'customers_page.dart';
 import 'home_page.dart';
 import 'seller_controller.dart';
@@ -18,11 +19,33 @@ class SellerShell extends StatefulWidget {
 }
 
 class _SellerShellState extends State<SellerShell> {
-  static const _titles = ['Início', 'Stock', 'Clientes', 'Vendas'];
+  static const _sections = [
+    AppNavigationSection(
+      label: 'Início',
+      icon: Icons.home_outlined,
+      selectedIcon: Icons.home,
+    ),
+    AppNavigationSection(
+      label: 'Stock',
+      icon: Icons.warehouse_outlined,
+      selectedIcon: Icons.warehouse,
+    ),
+    AppNavigationSection(
+      label: 'Clientes',
+      icon: Icons.people_outline,
+      selectedIcon: Icons.people,
+    ),
+    AppNavigationSection(
+      label: 'Vendas',
+      icon: Icons.receipt_long_outlined,
+      selectedIcon: Icons.receipt_long,
+    ),
+  ];
   late final SellerController _controller;
   final _salesKey = GlobalKey<SalesPageState>();
   int _index = 0;
   bool _leaving = false;
+  bool _loggingOut = false;
 
   @override
   void initState() {
@@ -53,11 +76,24 @@ class _SellerShellState extends State<SellerShell> {
     }
   }
 
-  void _logout({String? notice}) {
-    widget.auth.logout();
+  Future<void> _logout({String? notice}) async {
+    if (_loggingOut) return;
+    _loggingOut = true;
+    _leaving = true;
+    String? warning;
+    try {
+      await widget.auth.logout();
+    } catch (_) {
+      warning = 'Saiu deste dispositivo, mas não foi possível confirmar o encerramento no servidor. A sessão expira automaticamente.';
+    }
+    if (!mounted) return;
+    final message = [notice, warning].whereType<String>().join('\n');
     Navigator.of(context).pushAndRemoveUntil(
       MaterialPageRoute(
-        builder: (_) => LoginPage(auth: widget.auth, notice: notice),
+        builder: (_) => LoginPage(
+          auth: widget.auth,
+          notice: message.isEmpty ? null : message,
+        ),
       ),
       (_) => false,
     );
@@ -78,16 +114,33 @@ class _SellerShellState extends State<SellerShell> {
     ]);
   }
 
+  void _selectTab(int index) {
+    if (_index != index) setState(() => _index = index);
+    if (index == 3) _salesKey.currentState?.refresh();
+  }
+
   @override
   Widget build(BuildContext context) {
     return Scaffold(
+      drawer: AppNavigationDrawer(
+        username: widget.session.username,
+        role: 'Vendedor',
+        sections: _sections,
+        selectedIndex: _index,
+        onSelected: _selectTab,
+        onLogout: _logout,
+      ),
       appBar: AppBar(
+        leading: const AppMenuButton(),
         title: Row(
           children: [
             const AppLogo(size: 32),
             const SizedBox(width: 12),
             Expanded(
-              child: Text(_titles[_index], overflow: TextOverflow.ellipsis),
+              child: Text(
+                _sections[_index].label,
+                overflow: TextOverflow.ellipsis,
+              ),
             ),
           ],
         ),
@@ -105,10 +158,10 @@ class _SellerShellState extends State<SellerShell> {
           SellerHomePage(
             controller: _controller,
             session: widget.session,
-            onOpenTab: (i) => setState(() => _index = i),
+            onOpenTab: _selectTab,
             onNewSale: _newSale,
           ),
-          StockPage(controller: _controller),
+          StockPage(controller: _controller, onExpired: _sessionExpired),
           CustomersPage(controller: _controller, onNewCustomer: null),
           SalesPage(
             key: _salesKey,
@@ -121,29 +174,8 @@ class _SellerShellState extends State<SellerShell> {
       ),
       bottomNavigationBar: NavigationBar(
         selectedIndex: _index,
-        onDestinationSelected: (i) => setState(() => _index = i),
-        destinations: const [
-          NavigationDestination(
-            icon: Icon(Icons.home_outlined),
-            selectedIcon: Icon(Icons.home),
-            label: 'Início',
-          ),
-          NavigationDestination(
-            icon: Icon(Icons.warehouse_outlined),
-            selectedIcon: Icon(Icons.warehouse),
-            label: 'Stock',
-          ),
-          NavigationDestination(
-            icon: Icon(Icons.people_outline),
-            selectedIcon: Icon(Icons.people),
-            label: 'Clientes',
-          ),
-          NavigationDestination(
-            icon: Icon(Icons.receipt_long_outlined),
-            selectedIcon: Icon(Icons.receipt_long),
-            label: 'Vendas',
-          ),
-        ],
+        onDestinationSelected: _selectTab,
+        destinations: [for (final section in _sections) section.destination],
       ),
     );
   }

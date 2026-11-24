@@ -22,10 +22,23 @@ abstract final class AppTheme {
       secondary: AppColors.gold,
       surface: brightness == Brightness.light ? AppColors.cream : null,
     );
+    final buttonShape = RoundedRectangleBorder(
+      borderRadius: BorderRadius.circular(6),
+    );
+    final buttonStyle = ButtonStyle(shape: WidgetStatePropertyAll(buttonShape));
     return ThemeData(
       useMaterial3: true,
       colorScheme: scheme,
       scaffoldBackgroundColor: scheme.surface,
+      filledButtonTheme: FilledButtonThemeData(style: buttonStyle),
+      elevatedButtonTheme: ElevatedButtonThemeData(style: buttonStyle),
+      outlinedButtonTheme: OutlinedButtonThemeData(style: buttonStyle),
+      textButtonTheme: TextButtonThemeData(style: buttonStyle),
+      segmentedButtonTheme: SegmentedButtonThemeData(style: buttonStyle),
+      floatingActionButtonTheme: FloatingActionButtonThemeData(
+        shape: buttonShape,
+      ),
+      navigationBarTheme: NavigationBarThemeData(indicatorShape: buttonShape),
       textTheme: Typography.material2021(platform: TargetPlatform.android).black
           .apply(bodyColor: scheme.onSurface, displayColor: scheme.onSurface),
     );

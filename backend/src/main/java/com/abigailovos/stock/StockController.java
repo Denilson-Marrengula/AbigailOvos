@@ -20,7 +20,7 @@ class StockController {
             @NotNull StockMovement.Direction direction,
             @NotNull @DecimalMin(value = "0.00", inclusive = false) @Digits(integer = 17, fraction = 2) BigDecimal quantity,
             @NotBlank @Size(max = 255) String reason) {}
-    record Balance(UUID productId, BigDecimal quantity, BigDecimal reserved, BigDecimal available) {}
+    record Balance(UUID productId, BigDecimal quantity, BigDecimal reserved, BigDecimal available, String availableText) {}
 
     @PostMapping("/movements") @ResponseStatus(HttpStatus.CREATED)
     StockMovementEntity create(@Valid @RequestBody CreateMovement request, Principal principal) {
@@ -35,7 +35,8 @@ class StockController {
         boolean admin = authentication.getAuthorities().stream().anyMatch(a -> a.getAuthority().equals("ROLE_ADMIN"));
         BigDecimal quantity = stock.balance(productId, admin);
         BigDecimal reserved = stock.reserved(productId.toString());
-        return new Balance(productId, quantity, reserved, quantity.subtract(reserved));
+        BigDecimal available = quantity.subtract(reserved);
+        return new Balance(productId, quantity, reserved, available, available.toPlainString());
     }
 
     @GetMapping("/{productId}/movements")

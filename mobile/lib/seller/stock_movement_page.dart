@@ -46,12 +46,16 @@ class _StockMovementPageState extends State<StockMovementPage> {
 
   Future<void> _save() async {
     if (saving || confirming) return;
+    final retryingUnknown = submitted != null;
     if (submitted == null) {
       if (!form.currentState!.validate()) return;
       final product = widget.controller.products!.firstWhere(
         (p) => p.id == productId,
       );
       final amount = quantity.text.trim().replaceAll(',', '.');
+      final description = reason.text.trim().isEmpty && type == 'ENTRY'
+          ? 'Entrada de stock (registo automático)'
+          : reason.text.trim();
       setState(() => confirming = true);
       final confirmed = await showDialog<bool>(
         context: context,
@@ -60,7 +64,7 @@ class _StockMovementPageState extends State<StockMovementPage> {
           content: Text(
             '${typeLabels[type]} · ${product.name}\n'
             '${direction == 'INCREASE' ? 'Aumentar' : 'Reduzir'}: $amount ${product.unit}\n'
-            'Motivo: ${reason.text.trim()}',
+            'Registo: $description',
           ),
           actions: [
             TextButton(
@@ -83,7 +87,7 @@ class _StockMovementPageState extends State<StockMovementPage> {
         'type': type,
         'direction': direction,
         'quantity': amount,
-        'reason': reason.text.trim(),
+        'reason': description,
       };
     }
 
@@ -97,16 +101,16 @@ class _StockMovementPageState extends State<StockMovementPage> {
     } on AuthException catch (e) {
       if (mounted) {
         setState(() {
-          if (e.definitelyRejected) submitted = null;
-          error = e.definitelyRejected
+          if (e.definitelyRejected && !retryingUnknown) submitted = null;
+          error = e.definitelyRejected && !retryingUnknown
               ? e.message
-              : '${e.message}\nO resultado é desconhecido. Repita o mesmo envio; se sair, verifique o saldo antes de criar outro movimento.';
+              : '${e.message}\nO resultado é desconhecido. Repita o mesmo envio; se sair, peça ao administrador para verificar o histórico antes de criar outro movimento.';
         });
       }
     } catch (_) {
       if (mounted) {
         setState(
-          () => error = 'Resultado desconhecido. Repita o mesmo envio; se sair, verifique o saldo antes de criar outro movimento.',
+          () => error = 'Resultado desconhecido. Repita o mesmo envio; se sair, peça ao administrador para verificar o histórico antes de criar outro movimento.',
         );
       }
     } finally {
@@ -232,8 +236,17 @@ class _StockMovementPageState extends State<StockMovementPage> {
                     controller: reason,
                     enabled: !locked,
                     maxLength: 255,
-                    decoration: const InputDecoration(labelText: 'Motivo'),
-                    validator: (value) => value == null || value.trim().isEmpty
+                    decoration: InputDecoration(
+                      labelText: type == 'ENTRY'
+                          ? 'Observação (opcional)'
+                          : 'Motivo',
+                      helperText: type == 'ENTRY'
+                          ? 'Se deixar vazio, será registada uma entrada de stock.'
+                          : null,
+                    ),
+                    validator: (value) =>
+                        type != 'ENTRY' &&
+                            (value == null || value.trim().isEmpty)
                         ? 'Indique o motivo.'
                         : null,
                   ),

@@ -1,0 +1,1 @@
+Certificado autofirmado e chave **públicos, sem segredo**, gerados exclusivamente para o servidor HTTPS em `127.0.0.1` nos testes automatizados. Nunca utilizar em serviços reais, nem instalar como certificado de confiança geral. Validade de novembro de 2026 a novembro de 2036.

@@ -1,0 +1,54 @@
+# Blueprint do Web Service Render da API AbigailOvos.
+# Não contém segredos: os valores marcados com sync: false são pedidos no painel Render.
+# O serviço aponta para a base do piloto real escolhida pelo responsável;
+# não executar ensaios de escrita nessa base sem autorização específica.
+
+services:
+  - type: web
+    name: abigailovos-api
+    runtime: docker
+    repo: https://github.com/Denilson-Marrengula/AbigailOvos.git
+    branch: main
+    rootDir: backend
+    dockerfilePath: ./backend/Dockerfile
+    dockerContext: ./backend
+    healthCheckPath: /api/health
+    # Deploy manual: evita alterações automáticas na base do piloto.
+    autoDeployTrigger: 'off'
+    # Confirmar região e plano no painel antes de aplicar. Se omitidos,
+    # o Render usa "oregon" e "0.5c-512mb" (plano pago). A região não mudará depois.
+    envVars:
+      - key: SPRING_PROFILES_ACTIVE
+        value: render
+
+      # Origin pública exata do serviço, sem caminho, utilizador ou consulta.
+      - key: ABIGAIL_RENDER_PUBLIC_ORIGIN
+        sync: false
+
+      # Confirmar no painel que HTTP redireciona para HTTPS na borda do Render.
+      - key: ABIGAIL_RENDER_EDGE_CONFIRMED
+        value: 'true'
+
+      # 32 bytes aleatórios em Base64 canónico, gerados e guardados fora do repositório.
+      - key: ABIGAIL_AUTH_ORIGIN_KEY
+        sync: false
+
+      # jdbc:mysql://<host>:<porta>/abigailovos_tidb_test_4292b79106cb4fac?sslMode=VERIFY_IDENTITY
+      # Sem utilizador, palavra-passe, allowPublicKeyRetrieval nem outros parâmetros.
+      - key: DB_URL
+        sync: false
+
+      # Conta de execução da aplicação, com menos privilégios.
+      - key: DB_USERNAME
+        sync: false
+      - key: DB_PASSWORD
+        sync: false
+
+      # O serviço nunca aplica migrações nem cria o primeiro administrador.
+      - key: DB_MIGRATIONS_ENABLED
+        value: 'false'
+      - key: ABIGAIL_BOOTSTRAP_ENABLED
+        value: 'false'
+
+      - key: PORT
+        value: '10000'

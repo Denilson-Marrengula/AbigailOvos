@@ -1,6 +1,8 @@
 # Configuração do Render: implementada, não publicada
 
-**Estado: código pronto para ensaio controlado, sem serviço Render criado e sem segredos reais.** O perfil `render` foi acrescentado ao backend e os testes locais passaram. Nada foi publicado, nenhuma variável com valor real foi introduzida e a conta de execução TiDB continua por criar/validar. O perfil `production` mantém-se próprio para TLS direto e **não** deve ser usado no Render.
+**Estado: código e Blueprint prontos, sem serviço Render criado e sem segredos reais.** O perfil `render` foi acrescentado ao backend e os testes locais passaram. Foi criado `render.yaml` na raiz com os valores não secretos e `sync: false` para os segredos. Nada foi publicado, nenhuma variável com valor real foi introduzida e a conta de execução TiDB continua por criar/validar. O perfil `production` mantém-se próprio para TLS direto e **não** deve ser usado no Render.
+
+**Decisão do responsável (24/11/2026):** o Web Service apontará para `abigailovos_tidb_test_4292b79106cb4fac`, que passa a ser a base do piloto. Não serão executados nela ensaios de escrita, migrações automáticas nem criação de administrador. O esquema, as contas, a cópia e o restauro exigem procedimento separado e autorização específica.
 
 Render termina TLS no balanceador e encaminha HTTP ao serviço na porta `PORT` (por omissão `10000`). Por isso o perfil `render` não ativa `server.ssl.*` e não usa `requiresChannel().requiresSecure()`; em substituição, recusa pedidos que não chegaram através da borda HTTPS.
 
@@ -16,6 +18,7 @@ Render termina TLS no balanceador e encaminha HTTP ao serviço na porta `PORT` (
 | `backend/src/main/java/com/abigailovos/security/SecurityConfiguration.java` | `/api/health` em `permitAll`; continua sem Basic no modo sessões. |
 | `backend/src/main/java/com/abigailovos/security/LoginOriginFilter.java` | Health check não consome o balde por origem, para não esgotar o limite dos utilizadores. |
 | `backend/Dockerfile` | `PORT=10000`, `EXPOSE 10000 8443`. O `SERVER_PORT=8443` do Compose de staging continua a prevalecer nesse ambiente. |
+| `render.yaml` | Blueprint com `runtime: docker`, `rootDir: backend`, health check `/api/health`, deploy manual e segredos em `sync: false`. |
 
 O limite por origem continua a usar `request.getRemoteAddr()`, como no railway-test. Atrás do Render isso pode significar que todos os utilizadores partilham o mesmo endereço de entrada e, por isso, o mesmo balde; não foi adotada nenhuma resolução de `X-Forwarded-For` sem validação da cadeia real do fornecedor. Ver [proxy-render.md](proxy-render.md).
 
@@ -42,6 +45,8 @@ Não executar estes passos sem a conta do responsável, decisão de plano e auto
 
    Não definir `TLS_KEYSTORE_PATH`, `TLS_KEYSTORE_PASSWORD`, `SPRING_PROFILES_ACTIVE=production`, Basic nem `SERVER_PORT=8443` neste serviço. A ausência de qualquer variável obrigatória faz a aplicação falhar no arranque — não alterar a guarda para a fazer arrancar.
 
+   Ao aplicar o Blueprint, o Render pede os valores `sync: false`. Em `DB_URL`, indicar a cadeia `jdbc:mysql://<host>:<porta>/abigailovos_tidb_test_4292b79106cb4fac?sslMode=VERIFY_IDENTITY`, sem credenciais na URL.
+
 4. **Health check**: configurar o caminho `/api/health` no serviço. Não usar `/api/csrf`, porque consome o limite por origem.
 5. **Rede TiDB**: confirmar a regra de entrada para as faixas de saída da região Render escolhida. A regra atual do computador não cobre a aplicação alojada. Não alargar regras existentes sem confirmação.
 6. **Domínio**: opcional para o piloto interno. Se for usado, o valor de `ABIGAIL_RENDER_PUBLIC_ORIGIN` tem de ser o domínio final exato.
@@ -52,9 +57,9 @@ Não executar estes passos sem a conta do responsável, decisão de plano e auto
 2. `GET /api/health` devolve `200 ok` e não consome o limite de login.
 3. Um HTTP público é redirecionado para HTTPS antes de responder; um pedido direto ao contentor sem `X-Forwarded-Proto: https` recebe `403`.
 4. Um `X-Forwarded-Proto` repetido, vazio ou com vírgula é recusado quando chega diretamente ao contentor.
-5. `GET /api/csrf`, login, sessão e uma escrita simples funcionam apenas com dados fictícios; cookies aparecem com `Secure`, `HttpOnly` e `SameSite=Strict`.
+5. `GET /api/csrf` e o comportamento da sessão mostram cookies com `Secure`, `HttpOnly` e `SameSite=Strict`. Não executar login nem escritas de ensaio na base do piloto; login e operações reais ficam para depois da cópia/restauro e de autorização específica.
 6. A conta de execução não consegue aplicar migrações nem criar o primeiro administrador.
-7. Falha da base, concorrência no limitador e comportamento do plano Free são ensaiados sem dados reais. Se algum controlo falhar, parar e corrigir; não baixar a guarda.
+7. Não ensaiar falha da base, concorrência no limitador nem escritas nessa base. Confirmar apenas plano, região, alertas e comportamento do serviço sem alterar dados. Se algum controlo falhar, parar e corrigir; não baixar a guarda.
 
 ## 4. O que este ficheiro não faz
 

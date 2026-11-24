@@ -15,3 +15,5 @@
 *.p12
 *.pfx
 key.properties
+# Built Android packages are distribution artifacts, not source.
+*.apk

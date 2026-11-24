@@ -14,7 +14,7 @@ import org.springframework.context.annotation.Profile;
 import org.springframework.core.env.Environment;
 
 /** Fail-closed preflight for the Render edge profile. Messages never contain secrets. */
-@Configuration
+@Configuration(proxyBeanMethods = false)
 @Profile("render")
 @ConditionalOnWebApplication(type = ConditionalOnWebApplication.Type.SERVLET)
 class RenderSecurityGuard {

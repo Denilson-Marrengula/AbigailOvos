@@ -5,6 +5,7 @@ import static org.assertj.core.api.Assertions.assertThatThrownBy;
 
 import java.util.Base64;
 import org.junit.jupiter.api.Test;
+import org.springframework.context.annotation.Configuration;
 import org.springframework.mock.env.MockEnvironment;
 
 /** Synthetic configuration only: no connection, secret or deployment is involved. */
@@ -32,6 +33,10 @@ class RenderSecurityGuardTest {
 
     @Test void acceptsCompleteSyntheticConfiguration() {
         preflight(complete());
+    }
+
+    @Test void doesNotRequireCglibEnhancement() {
+        assertThat(RenderSecurityGuard.class.getAnnotation(Configuration.class).proxyBeanMethods()).isFalse();
     }
 
     @Test void refusesToStartWhenAnAssumptionIsMissing() {
